@@ -10,6 +10,7 @@ import dev.thomazz.pledge.pinger.data.PingData;
 import dev.thomazz.pledge.pinger.data.PingOrder;
 import dev.thomazz.pledge.pinger.frame.data.Frame;
 import dev.thomazz.pledge.pinger.frame.data.FrameData;
+import dev.thomazz.pledge.util.ChannelUtils;
 import io.netty.channel.Channel;
 import org.bukkit.entity.Player;
 
@@ -106,7 +107,7 @@ public class FrameClientPingerImpl extends ClientPingerImpl implements FrameClie
 
     private void tryReadyHandler(Player player) {
         this.api.getChannel(player).filter(Channel::isOpen).ifPresent(channel ->
-            channel.eventLoop().execute(() -> {
+            ChannelUtils.runInEventLoop(channel, () -> {
                 try {
                     ChannelMessageQueueHandler handler = channel.pipeline().get(ChannelMessageQueueHandler.class);
                     handler.setMode(QueueMode.ADD_LAST);
@@ -122,7 +123,7 @@ public class FrameClientPingerImpl extends ClientPingerImpl implements FrameClie
         Optional<Frame> optionalFrame = frameData.continueFrame();
 
         this.api.getChannel(player).filter(Channel::isOpen).ifPresent(channel ->
-            channel.eventLoop().execute(() -> {
+            ChannelUtils.runInEventLoop(channel, () -> {
                 try {
                     ChannelMessageQueueHandler handler = channel.pipeline().get(ChannelMessageQueueHandler.class);
 
