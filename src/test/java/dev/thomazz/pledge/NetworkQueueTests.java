@@ -6,6 +6,8 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.flow.FlowControlHandler;
+import io.netty.handler.flush.FlushConsolidationHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
@@ -29,6 +31,11 @@ public class NetworkQueueTests {
     public void setup() {
         this.testHandler = new TestChannelOutboundHandler();
         this.queueHandler = new ChannelMessageQueueHandler();
+    }
+
+    @Test
+    @Order(1)
+    public void testDrain() {
         this.channel = new EmbeddedChannel(this.testHandler, this.queueHandler);
 
         this.queueHandler.setMode(QueueMode.ADD_LAST);
@@ -39,11 +46,7 @@ public class NetworkQueueTests {
         this.channel.writeAndFlush("test1");
         this.queueHandler.setMode(QueueMode.ADD_LAST);
         this.channel.writeAndFlush("test5");
-    }
 
-    @Test
-    @Order(1)
-    public void testDrain() {
         this.queueHandler.drain(this.channel.pipeline().lastContext());
 
         int i = 1;
@@ -55,6 +58,17 @@ public class NetworkQueueTests {
     @Test
     @Order(2)
     public void testClose() {
+        this.channel = new EmbeddedChannel(this.testHandler, this.queueHandler);
+
+        this.queueHandler.setMode(QueueMode.ADD_LAST);
+        this.channel.writeAndFlush("test2");
+        this.channel.writeAndFlush("test3");
+        this.channel.writeAndFlush("test4");
+        this.queueHandler.setMode(QueueMode.ADD_FIRST);
+        this.channel.writeAndFlush("test1");
+        this.queueHandler.setMode(QueueMode.ADD_LAST);
+        this.channel.writeAndFlush("test5");
+
         this.channel.close();
 
         int i = 1;

@@ -5,6 +5,7 @@ import dev.thomazz.pledge.packet.PingPacketProvider;
 import dev.thomazz.pledge.pinger.data.Ping;
 import dev.thomazz.pledge.pinger.data.PingData;
 import dev.thomazz.pledge.pinger.data.PingOrder;
+import dev.thomazz.pledge.util.ChannelUtils;
 import lombok.Getter;
 import org.bukkit.entity.Player;
 
@@ -76,8 +77,8 @@ public class ClientPingerImpl implements ClientPinger {
     }
 
     protected void ping(Player player, Ping ping) {
-        this.api.getChannel(player).ifPresent(
-            channel -> channel.eventLoop().execute(() -> {
+        this.api.getChannel(player).ifPresent(channel ->
+            ChannelUtils.runInEventLoop(channel, () -> {
                 this.api.sendPing(player, ping.getId());
                 this.getPingData(player).ifPresent(data -> data.offer(ping));
                 this.onSend(player, ping);

@@ -12,6 +12,7 @@ import dev.thomazz.pledge.pinger.ClientPingerImpl;
 import dev.thomazz.pledge.pinger.frame.FrameClientPinger;
 import dev.thomazz.pledge.pinger.frame.FrameClientPingerImpl;
 import dev.thomazz.pledge.util.ChannelAccess;
+import dev.thomazz.pledge.util.ChannelUtils;
 import dev.thomazz.pledge.util.TickEndTask;
 import io.netty.channel.Channel;
 import lombok.Getter;
@@ -136,17 +137,12 @@ public class PledgeImpl implements Pledge, Listener {
             int pingId = Math.max(Math.min(id, max), min);
 
             // Run on channel event loop
-            this.getChannel(player).ifPresent(channel -> {
-                if (channel.eventLoop().inEventLoop()) {
-                    pluginManager.callEvent(new PingSendEvent(player, id));
+            this.getChannel(player).ifPresent(channel ->
+                ChannelUtils.runInEventLoop(channel, () -> {
+                    pluginManager.callEvent(new PingSendEvent(player, pingId));
                     channel.writeAndFlush(packet);
-                } else {
-                    channel.eventLoop().execute(() -> {
-                        pluginManager.callEvent(new PingSendEvent(player, pingId));
-                        channel.writeAndFlush(packet);
-                    });
-                }
-            });
+                })
+            );
         } catch (Exception ex) {
             this.logger.severe(String.format("Failed to send ping! Player:%s Id:%o", player.getName(), id));
             ex.printStackTrace();
