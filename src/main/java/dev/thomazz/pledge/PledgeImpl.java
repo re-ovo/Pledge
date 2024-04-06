@@ -127,24 +127,26 @@ public class PledgeImpl implements Pledge, Listener {
 
     @Override
     public void sendPing(@NotNull Player player, int id) {
+        // Keep within ranges
+        int max = Math.max(this.packetProvider.getUpperBound(), this.packetProvider.getLowerBound());
+        int min = Math.min(this.packetProvider.getUpperBound(), this.packetProvider.getLowerBound());
+        int pingId = Math.max(Math.min(id, max), min);
+
+        // Run on channel event loop
+        this.getChannel(player).ifPresent(channel ->
+            ChannelUtils.runInEventLoop(channel, () ->
+                this.sendPingRaw(player, channel, pingId)
+            )
+        );
+    }
+
+    public void sendPingRaw(Player player, Channel channel, int pingId) {
         try {
-            PluginManager pluginManager = Bukkit.getServer().getPluginManager();
-            Object packet = this.packetProvider.buildPacket(id);
-
-            // Keep within ranges
-            int max = Math.max(this.packetProvider.getUpperBound(), this.packetProvider.getLowerBound());
-            int min = Math.min(this.packetProvider.getUpperBound(), this.packetProvider.getLowerBound());
-            int pingId = Math.max(Math.min(id, max), min);
-
-            // Run on channel event loop
-            this.getChannel(player).ifPresent(channel ->
-                ChannelUtils.runInEventLoop(channel, () -> {
-                    pluginManager.callEvent(new PingSendEvent(player, pingId));
-                    channel.writeAndFlush(packet);
-                })
-            );
+            Object packet = this.packetProvider.buildPacket(pingId);
+            Bukkit.getPluginManager().callEvent(new PingSendEvent(player, pingId));
+            channel.writeAndFlush(packet);
         } catch (Exception ex) {
-            this.logger.severe(String.format("Failed to send ping! Player:%s Id:%o", player.getName(), id));
+            this.logger.severe(String.format("Failed to send ping! Player:%s Id:%o", player.getName(), pingId));
             ex.printStackTrace();
         }
     }

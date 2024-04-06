@@ -1,8 +1,8 @@
 package dev.thomazz.pledge.pinger.frame;
 
 import dev.thomazz.pledge.PledgeImpl;
-import dev.thomazz.pledge.network.queue.ChannelMessageQueueHandler;
-import dev.thomazz.pledge.network.queue.ChannelMessageQueuePrimer;
+import dev.thomazz.pledge.network.queue.MessageQueueHandler;
+import dev.thomazz.pledge.network.queue.MessageQueuePrimer;
 import dev.thomazz.pledge.network.queue.QueueMode;
 import dev.thomazz.pledge.pinger.ClientPingerImpl;
 import dev.thomazz.pledge.pinger.data.Ping;
@@ -38,15 +38,33 @@ public class FrameClientPingerImpl extends ClientPingerImpl implements FrameClie
     @Override
     public void registerPlayer(Player player) {
         super.registerPlayer(player);
-        this.injectPlayer(player);
         this.frameDataMap.put(player, new FrameData());
     }
 
     @Override
     public void unregisterPlayer(Player player) {
         super.unregisterPlayer(player);
-        this.ejectPlayer(player);
         this.frameDataMap.remove(player);
+    }
+
+    @Override
+    protected void injectPlayer(Player player) {
+        MessageQueueHandler queueHandler = new MessageQueueHandler();
+        MessageQueuePrimer queuePrimer = new MessageQueuePrimer(queueHandler);
+        this.api.getChannel(player).map(Channel::pipeline).ifPresent(pipe ->
+            pipe.addFirst("pledge_queue_handler", queueHandler)
+                .addLast("pledge_queue_primer", queuePrimer)
+        );
+    }
+
+    @Override
+    protected void ejectPlayer(Player player) {
+        this.api.getChannel(player).ifPresent(
+            channel -> {
+                channel.pipeline().remove(MessageQueueHandler.class);
+                channel.pipeline().remove(MessageQueuePrimer.class);
+            }
+        );
     }
 
     @Override
@@ -109,7 +127,7 @@ public class FrameClientPingerImpl extends ClientPingerImpl implements FrameClie
         this.api.getChannel(player).filter(Channel::isOpen).ifPresent(channel ->
             ChannelUtils.runInEventLoop(channel, () -> {
                 try {
-                    ChannelMessageQueueHandler handler = channel.pipeline().get(ChannelMessageQueueHandler.class);
+                    MessageQueueHandler handler = channel.pipeline().get(MessageQueueHandler.class);
                     handler.setMode(QueueMode.ADD_LAST);
                 } catch (Exception ex) {
                     this.api.getLogger().severe("Unable to ready handler for player: " + player.getName());
@@ -125,7 +143,7 @@ public class FrameClientPingerImpl extends ClientPingerImpl implements FrameClie
         this.api.getChannel(player).filter(Channel::isOpen).ifPresent(channel ->
             ChannelUtils.runInEventLoop(channel, () -> {
                 try {
-                    ChannelMessageQueueHandler handler = channel.pipeline().get(ChannelMessageQueueHandler.class);
+                    MessageQueueHandler handler = channel.pipeline().get(MessageQueueHandler.class);
 
                     if (optionalFrame.isPresent()) {
                         Frame frame = optionalFrame.get();
@@ -133,9 +151,9 @@ public class FrameClientPingerImpl extends ClientPingerImpl implements FrameClie
 
                         // Wrap by ping packets
                         handler.setMode(QueueMode.ADD_FIRST);
-                        this.ping(player, new Ping(PingOrder.TICK_START, frame.getStartId()));
+                        this.ping(player, channel, new Ping(PingOrder.TICK_START, frame.getStartId()));
                         handler.setMode(QueueMode.ADD_LAST);
-                        this.ping(player, new Ping(PingOrder.TICK_END, frame.getEndId()));
+                        this.ping(player, channel, new Ping(PingOrder.TICK_END, frame.getEndId()));
                     }
 
                     handler.drain(channel.pipeline().context(handler));
@@ -151,23 +169,5 @@ public class FrameClientPingerImpl extends ClientPingerImpl implements FrameClie
         Frame frame = new Frame(data.pullId(), data.pullId());
         this.frameListener.forEach(listener -> listener.onFrameCreate(player, frame));
         return frame;
-    }
-
-    private void injectPlayer(Player player) {
-        ChannelMessageQueueHandler queueHandler = new ChannelMessageQueueHandler();
-        ChannelMessageQueuePrimer queuePrimer = new ChannelMessageQueuePrimer(queueHandler);
-        this.api.getChannel(player).map(Channel::pipeline).ifPresent(pipe ->
-            pipe.addFirst("pledge_queue_handler", queueHandler)
-                .addLast("pledge_queue_primer", queuePrimer)
-        );
-    }
-
-    private void ejectPlayer(Player player) {
-        this.api.getChannel(player).ifPresent(
-            channel -> {
-                channel.pipeline().remove(ChannelMessageQueueHandler.class);
-                channel.pipeline().remove(ChannelMessageQueuePrimer.class);
-            }
-        );
     }
 }

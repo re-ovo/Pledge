@@ -1,12 +1,16 @@
 package dev.thomazz.pledge.pinger;
 
 import dev.thomazz.pledge.PledgeImpl;
+import dev.thomazz.pledge.event.PingSendEvent;
+import dev.thomazz.pledge.network.NetworkTickConsolidator;
 import dev.thomazz.pledge.packet.PingPacketProvider;
 import dev.thomazz.pledge.pinger.data.Ping;
 import dev.thomazz.pledge.pinger.data.PingData;
 import dev.thomazz.pledge.pinger.data.PingOrder;
 import dev.thomazz.pledge.util.ChannelUtils;
+import io.netty.channel.Channel;
 import lombok.Getter;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
@@ -68,22 +72,37 @@ public class ClientPingerImpl implements ClientPinger {
 
     public void registerPlayer(Player player) {
         if (this.playerFilter.test(player)) {
+            this.injectPlayer(player);
             this.pingDataMap.put(player, new PingData(player,this));
         }
     }
 
     public void unregisterPlayer(Player player) {
+        this.ejectPlayer(player);
         this.pingDataMap.remove(player);
     }
 
-    protected void ping(Player player, Ping ping) {
-        this.api.getChannel(player).ifPresent(channel ->
-            ChannelUtils.runInEventLoop(channel, () -> {
-                this.api.sendPing(player, ping.getId());
-                this.getPingData(player).ifPresent(data -> data.offer(ping));
-                this.onSend(player, ping);
-            })
+    protected void injectPlayer(Player player) {
+        this.api.getChannel(player).map(Channel::pipeline).ifPresent(pipe ->
+            pipe.addLast("pledge_tick_consolidator", new NetworkTickConsolidator())
         );
+    }
+
+    protected void ejectPlayer(Player player) {
+        this.api.getChannel(player).ifPresent(channel ->
+            channel.pipeline().remove(NetworkTickConsolidator.class)
+        );
+    }
+
+    // Note: Should run in channel event loop
+    protected void ping(Player player, Channel channel, Ping ping) {
+        if (!channel.eventLoop().inEventLoop()) {
+            throw new IllegalStateException("Tried to run ping outside event loop!");
+        }
+
+        this.api.sendPingRaw(player, channel, ping.getId());
+        this.getPingData(player).ifPresent(data -> data.offer(ping));
+        this.onSend(player, ping);
     }
 
     public boolean isInRange(int id) {
@@ -133,10 +152,27 @@ public class ClientPingerImpl implements ClientPinger {
     }
 
     public void tickStart() {
-        this.pingDataMap.forEach((player, data) -> this.ping(player, new Ping(PingOrder.TICK_START, data.pullId())));
+        this.pingDataMap.forEach((player, data) ->
+            this.api.getChannel(player).ifPresent(channel ->
+                ChannelUtils.runInEventLoop(channel, () -> {
+                    NetworkTickConsolidator consolidator = channel.pipeline().get(NetworkTickConsolidator.class);
+                    consolidator.open();
+                    this.ping(player, channel, new Ping(PingOrder.TICK_START, data.pullId()));
+                    consolidator.drain(channel.pipeline().lastContext());
+                })
+            )
+        );
     }
 
     public void tickEnd() {
-        this.pingDataMap.forEach((player, data) -> this.ping(player, new Ping(PingOrder.TICK_END, data.pullId())));
+        this.pingDataMap.forEach((player, data) ->
+            this.api.getChannel(player).ifPresent(channel ->
+                ChannelUtils.runInEventLoop(channel, () -> {
+                    NetworkTickConsolidator consolidator = channel.pipeline().get(NetworkTickConsolidator.class);
+                    this.ping(player, channel, new Ping(PingOrder.TICK_END, data.pullId()));
+                    consolidator.close();
+                })
+            )
+        );
     }
 }

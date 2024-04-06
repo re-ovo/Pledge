@@ -6,8 +6,8 @@ import io.netty.channel.ChannelPromise;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
-public class ChannelMessageQueuePrimer extends ChannelOutboundHandlerAdapter {
-    private final ChannelMessageQueueHandler queueHandler;
+public class MessageQueuePrimer extends ChannelOutboundHandlerAdapter {
+    private final MessageQueueHandler queueHandler;
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
