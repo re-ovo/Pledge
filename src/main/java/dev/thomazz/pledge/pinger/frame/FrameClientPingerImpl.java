@@ -51,19 +51,22 @@ public class FrameClientPingerImpl extends ClientPingerImpl implements FrameClie
     protected void injectPlayer(Player player) {
         MessageQueueHandler queueHandler = new MessageQueueHandler();
         MessageQueuePrimer queuePrimer = new MessageQueuePrimer(queueHandler);
-        this.api.getChannel(player).map(Channel::pipeline).ifPresent(pipe ->
-            pipe.addFirst("pledge_queue_handler", queueHandler)
-                .addLast("pledge_queue_primer", queuePrimer)
+        this.api.getChannel(player).ifPresent(channel ->
+            ChannelUtils.runInEventLoop(channel, () ->
+                channel.pipeline()
+                    .addFirst("pledge_queue_handler", queueHandler)
+                    .addLast("pledge_queue_primer", queuePrimer)
+            )
         );
     }
 
     @Override
     protected void ejectPlayer(Player player) {
-        this.api.getChannel(player).ifPresent(
-            channel -> {
+        this.api.getChannel(player).ifPresent(channel ->
+            ChannelUtils.runInEventLoop(channel, () -> {
                 channel.pipeline().remove(MessageQueueHandler.class);
                 channel.pipeline().remove(MessageQueuePrimer.class);
-            }
+            })
         );
     }
 
@@ -144,19 +147,20 @@ public class FrameClientPingerImpl extends ClientPingerImpl implements FrameClie
             ChannelUtils.runInEventLoop(channel, () -> {
                 try {
                     MessageQueueHandler handler = channel.pipeline().get(MessageQueueHandler.class);
+                    if (handler != null) {
+                        if (optionalFrame.isPresent()) {
+                            Frame frame = optionalFrame.get();
+                            this.frameListener.forEach(listener -> listener.onFrameSend(player, frame));
 
-                    if (optionalFrame.isPresent()) {
-                        Frame frame = optionalFrame.get();
-                        this.frameListener.forEach(listener -> listener.onFrameSend(player, frame));
+                            // Wrap by ping packets
+                            handler.setMode(QueueMode.ADD_FIRST);
+                            this.ping(player, channel, new Ping(PingOrder.TICK_START, frame.getStartId()));
+                            handler.setMode(QueueMode.ADD_LAST);
+                            this.ping(player, channel, new Ping(PingOrder.TICK_END, frame.getEndId()));
+                        }
 
-                        // Wrap by ping packets
-                        handler.setMode(QueueMode.ADD_FIRST);
-                        this.ping(player, channel, new Ping(PingOrder.TICK_START, frame.getStartId()));
-                        handler.setMode(QueueMode.ADD_LAST);
-                        this.ping(player, channel, new Ping(PingOrder.TICK_END, frame.getEndId()));
+                        handler.drain(channel.pipeline().context(handler));
                     }
-
-                    handler.drain(channel.pipeline().context(handler));
                 } catch (Exception ex) {
                     this.api.getLogger().severe("Unable to drain message queue from player: " + player.getName());
                     ex.printStackTrace();

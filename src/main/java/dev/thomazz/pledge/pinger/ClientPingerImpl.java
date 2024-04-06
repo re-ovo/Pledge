@@ -1,8 +1,7 @@
 package dev.thomazz.pledge.pinger;
 
 import dev.thomazz.pledge.PledgeImpl;
-import dev.thomazz.pledge.event.PingSendEvent;
-import dev.thomazz.pledge.network.NetworkTickConsolidator;
+import dev.thomazz.pledge.network.NetworkPacketConsolidator;
 import dev.thomazz.pledge.packet.PingPacketProvider;
 import dev.thomazz.pledge.pinger.data.Ping;
 import dev.thomazz.pledge.pinger.data.PingData;
@@ -10,7 +9,6 @@ import dev.thomazz.pledge.pinger.data.PingOrder;
 import dev.thomazz.pledge.util.ChannelUtils;
 import io.netty.channel.Channel;
 import lombok.Getter;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
@@ -78,19 +76,23 @@ public class ClientPingerImpl implements ClientPinger {
     }
 
     public void unregisterPlayer(Player player) {
-        this.ejectPlayer(player);
         this.pingDataMap.remove(player);
+        this.ejectPlayer(player);
     }
 
     protected void injectPlayer(Player player) {
-        this.api.getChannel(player).map(Channel::pipeline).ifPresent(pipe ->
-            pipe.addLast("pledge_tick_consolidator", new NetworkTickConsolidator())
+        this.api.getChannel(player).ifPresent(channel ->
+            ChannelUtils.runInEventLoop(channel,
+                () -> channel.pipeline().addLast("pledge_tick_consolidator", new NetworkPacketConsolidator())
+            )
         );
     }
 
     protected void ejectPlayer(Player player) {
         this.api.getChannel(player).ifPresent(channel ->
-            channel.pipeline().remove(NetworkTickConsolidator.class)
+            ChannelUtils.runInEventLoop(channel,
+                () -> channel.pipeline().remove(NetworkPacketConsolidator.class)
+            )
         );
     }
 
@@ -155,10 +157,12 @@ public class ClientPingerImpl implements ClientPinger {
         this.pingDataMap.forEach((player, data) ->
             this.api.getChannel(player).ifPresent(channel ->
                 ChannelUtils.runInEventLoop(channel, () -> {
-                    NetworkTickConsolidator consolidator = channel.pipeline().get(NetworkTickConsolidator.class);
-                    consolidator.open();
-                    this.ping(player, channel, new Ping(PingOrder.TICK_START, data.pullId()));
-                    consolidator.drain(channel.pipeline().lastContext());
+                    NetworkPacketConsolidator consolidator = channel.pipeline().get(NetworkPacketConsolidator.class);
+                    if (consolidator != null) {
+                        consolidator.open();
+                        this.ping(player, channel, new Ping(PingOrder.TICK_START, data.pullId()));
+                        consolidator.drain(channel.pipeline().lastContext());
+                    }
                 })
             )
         );
@@ -168,9 +172,11 @@ public class ClientPingerImpl implements ClientPinger {
         this.pingDataMap.forEach((player, data) ->
             this.api.getChannel(player).ifPresent(channel ->
                 ChannelUtils.runInEventLoop(channel, () -> {
-                    NetworkTickConsolidator consolidator = channel.pipeline().get(NetworkTickConsolidator.class);
-                    this.ping(player, channel, new Ping(PingOrder.TICK_END, data.pullId()));
-                    consolidator.close();
+                    NetworkPacketConsolidator consolidator = channel.pipeline().get(NetworkPacketConsolidator.class);
+                    if (consolidator != null) {
+                        this.ping(player, channel, new Ping(PingOrder.TICK_END, data.pullId()));
+                        consolidator.close();
+                    }
                 })
             )
         );

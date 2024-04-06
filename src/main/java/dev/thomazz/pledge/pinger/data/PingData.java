@@ -8,15 +8,15 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @Getter
 public class PingData {
     private final Queue<Ping> expectingIds = new ConcurrentLinkedQueue<>();
-    private final AtomicBoolean validated = new AtomicBoolean(false);
     private final Player player;
     private final ClientPingerImpl pinger;
-    private volatile int id;
+
+    private boolean validated = false;
+    private int id;
 
     public PingData(Player player, ClientPingerImpl pinger) {
         this.player = player;
@@ -49,17 +49,14 @@ public class PingData {
 
         if (ping != null && ping.getId() == id) {
             // Make sure to notify validation with the first correct ping received
-            if (this.validated.compareAndSet(false, true)) {
+            if (!this.validated) {
                 this.pinger.getPingListeners().forEach(listener -> listener.onValidation(this.player, id));
+                this.validated = true;
             }
 
             return Optional.ofNullable(this.expectingIds.poll());
         }
 
         return Optional.empty();
-    }
-
-    public boolean isValidated() {
-        return this.validated.get();
     }
 }

@@ -1,5 +1,6 @@
 package dev.thomazz.pledge.network;
 
+import dev.thomazz.pledge.packet.PacketFiltering;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
@@ -7,13 +8,21 @@ import io.netty.channel.ChannelPromise;
 import java.util.ArrayDeque;
 import java.util.Queue;
 
-public class NetworkTickConsolidator extends ChannelOutboundHandlerAdapter {
+// Prevents asynchronously sent packets to land outside the start and end ping interval
+public class NetworkPacketConsolidator extends ChannelOutboundHandlerAdapter {
     private final Queue<NetworkMessage> messageQueue = new ArrayDeque<>();
-    private volatile boolean open = false;
+    private boolean started = false;
+    private boolean open = true;
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-        if (!this.open) {
+        // Start with login packet in game state
+        if (PacketFiltering.isLoginPacket(msg)) {
+            this.started = true;
+        }
+
+        // Check if started, some packets are whitelisted from being queued
+        if (this.started && !this.open && !PacketFiltering.isWhitelistedFromQueue(msg)) {
             this.messageQueue.add(NetworkMessage.of(msg, promise));
             return;
         }
