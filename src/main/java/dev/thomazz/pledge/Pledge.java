@@ -66,7 +66,7 @@ public interface Pledge {
      */
     static Pledge getOrCreate(@NotNull Plugin plugin) {
         if (PledgeImpl.instance == null) {
-            PledgeImpl.instance = new PledgeImpl(plugin).start();
+            PledgeImpl.instance = new PledgeImpl(plugin);
         }
 
         return PledgeImpl.instance;

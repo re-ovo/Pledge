@@ -54,12 +54,16 @@ public class PledgeImpl implements Pledge, Listener {
         this.logger = plugin.getLogger();
         this.packetProvider = PacketProviderFactory.buildPingProvider();
 
-        PluginManager manager = plugin.getServer().getPluginManager();
-        BukkitScheduler scheduler = plugin.getServer().getScheduler();
+        PluginManager manager = Bukkit.getPluginManager();
+        BukkitScheduler scheduler = Bukkit.getScheduler();
 
         this.startTask = scheduler.runTaskTimer(plugin, () -> manager.callEvent(new TickStartEvent()), 0L, 1L);
         this.endTask = TickEndTask.create(() -> manager.callEvent(new TickEndEvent()));
 
+        // Setup for all players
+        Bukkit.getOnlinePlayers().forEach(this::setupPlayer);
+
+        // Register as listener after setup
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
@@ -83,12 +87,6 @@ public class PledgeImpl implements Pledge, Listener {
 
         // Unregister from client pingers
         this.clientPingers.forEach(pinger -> pinger.unregisterPlayer(player));
-    }
-
-    PledgeImpl start() {
-        // Setup for all players
-        Bukkit.getOnlinePlayers().forEach(this::setupPlayer);
-        return this;
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
