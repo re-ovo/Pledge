@@ -8,6 +8,8 @@ import dev.thomazz.pledge.pinger.frame.FrameClientPingerListener;
 import dev.thomazz.pledge.pinger.frame.data.Frame;
 import dev.thomazz.pledge.pinger.frame.FrameClientPingerImpl;
 import dev.thomazz.pledge.pinger.frame.data.FrameData;
+import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.bukkit.entity.Player;
 import org.junit.jupiter.api.BeforeEach;
@@ -86,6 +88,8 @@ public class ClientPingerTests {
     @Test
     @Order(2)
     public void testFrameClientPinger() {
+        this.channel.pipeline().addFirst("prepender", new ChannelOutboundHandlerAdapter());
+
         FrameClientPingerImpl pinger = new FrameClientPingerImpl(this.clientPing, 0, -999);
         pinger.registerPlayer(this.player);
 
@@ -165,6 +169,8 @@ public class ClientPingerTests {
     @Test
     @Order(4)
     public void testFrameClientPingerListener() {
+        this.channel.pipeline().addFirst("prepender", new ChannelOutboundHandlerAdapter());
+
         FrameClientPingerImpl pinger = new FrameClientPingerImpl(this.clientPing, 0, -999);
         pinger.registerPlayer(this.player);
 

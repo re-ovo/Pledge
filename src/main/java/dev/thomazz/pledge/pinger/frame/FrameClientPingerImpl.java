@@ -54,7 +54,7 @@ public class FrameClientPingerImpl extends ClientPingerImpl implements FrameClie
         this.api.getChannel(player).ifPresent(channel ->
             ChannelUtils.runInEventLoop(channel, () ->
                 channel.pipeline()
-                    .addFirst("pledge_queue_handler", queueHandler)
+                    .addAfter("prepender", "pledge_queue_handler", queueHandler)
                     .addLast("pledge_queue_primer", queuePrimer)
             )
         );
@@ -72,7 +72,7 @@ public class FrameClientPingerImpl extends ClientPingerImpl implements FrameClie
 
     @Override
     public void tickStart() {
-        this.frameDataMap.keySet().forEach(this::tryReadyHandler);
+        // NO-OP
     }
 
     @Override
@@ -124,20 +124,6 @@ public class FrameClientPingerImpl extends ClientPingerImpl implements FrameClie
 
     public Optional<FrameData> getFrameData(Player player) {
         return Optional.ofNullable(this.frameDataMap.get(player));
-    }
-
-    private void tryReadyHandler(Player player) {
-        this.api.getChannel(player).filter(Channel::isOpen).ifPresent(channel ->
-            ChannelUtils.runInEventLoop(channel, () -> {
-                try {
-                    MessageQueueHandler handler = channel.pipeline().get(MessageQueueHandler.class);
-                    handler.setMode(QueueMode.ADD_LAST);
-                } catch (Exception ex) {
-                    this.api.getLogger().severe("Unable to ready handler for player: " + player.getName());
-                    ex.printStackTrace();
-                }
-            })
-        );
     }
 
     private void trySendPings(Player player, FrameData frameData) {

@@ -16,15 +16,15 @@ public class NetworkPacketConsolidator extends ChannelOutboundHandlerAdapter {
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+        // Start with login packet in game state
+        if (PacketFiltering.isLoginPacket(msg)) {
+            this.started = true;
+        }
+
         // Check if started, some packets are whitelisted from being queued
         if (this.started && !this.open && !PacketFiltering.isWhitelistedFromQueue(msg)) {
             this.messageQueue.add(NetworkMessage.of(msg, promise));
             return;
-        }
-
-        // Start with login packet in game state
-        if (PacketFiltering.isLoginPacket(msg)) {
-            this.started = true;
         }
 
         super.write(ctx, msg, promise);

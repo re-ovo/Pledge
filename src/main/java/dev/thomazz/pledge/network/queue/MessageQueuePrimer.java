@@ -12,6 +12,11 @@ public class MessageQueuePrimer extends ChannelOutboundHandlerAdapter {
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+        // Set queue handler to add last after login
+        if (PacketFiltering.isLoginPacket(msg)) {
+            this.queueHandler.setMode(QueueMode.ADD_LAST);
+        }
+
         // Let whitelisted packets pass through the queue
         if (PacketFiltering.isWhitelistedFromQueue(msg)) {
             QueueMode lastMode = this.queueHandler.getMode();
