@@ -83,10 +83,13 @@ public class PledgeImpl implements Pledge, Listener {
     }
 
     private void teardownPlayer(Player player) {
-        this.playerChannels.remove(player);
-
         // Unregister from client pingers
         this.clientPingers.forEach(pinger -> pinger.unregisterPlayer(player));
+
+        // Unregister pong listener
+        ChannelAccess.getChannel(player).pipeline().remove("pledge_packet_listener");
+
+        this.playerChannels.remove(player);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
