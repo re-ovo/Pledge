@@ -25,4 +25,11 @@ public interface FrameClientPinger extends ClientPinger {
      * @param listener - Listener to attach
      */
     void attach(FrameClientPingerListener listener);
+
+    /**
+     * Forcefully end the current frame and move to the next Frame
+     * <p>
+     * @param player - Player to end frame for
+     */
+    void nextFrame(Player player);
 }

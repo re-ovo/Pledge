@@ -34,6 +34,13 @@ public class FrameClientPingerImpl extends ClientPingerImpl implements FrameClie
         super.attach(listener);
         this.frameListener.add(listener);
     }
+    @Override
+    public void nextFrame(Player player) {
+        FrameData frameData = this.frameDataMap.get(player);
+        if(frameData != null) {
+            trySendPings(player, frameData);
+        }
+    }
 
     @Override
     public void registerPlayer(Player player) {
