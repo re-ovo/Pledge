@@ -4,6 +4,7 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 public class FrameData {
     private final Queue<Frame> expectingFrames = new ConcurrentLinkedQueue<>();
@@ -31,15 +32,38 @@ public class FrameData {
         return Optional.ofNullable(frame);
     }
 
-    public Optional<Frame> matchStart(int id) {
-        return Optional.ofNullable(this.expectingFrames.peek()).filter(frame -> frame.getStartId() == id);
+    public Optional<Frame> matchStart(int id, Consumer<Frame> handler) {
+        boolean exists = this.expectingFrames.stream().anyMatch(frame -> frame.getStartId() == id);
+        if (!exists) return Optional.empty();
+        for (Frame frame : this.expectingFrames) {
+            handler.accept(frame);
+            if (frame.getStartId() == id) {
+                return Optional.of(frame);
+            }
+        }
+        return Optional.empty();
     }
 
-    public Optional<Frame> matchEnd(int id) {
-        return Optional.ofNullable(this.expectingFrames.peek()).filter(frame -> frame.getEndId() == id);
+    public Optional<Frame> matchEnd(int id, Consumer<Frame> handler) {
+        boolean exists = this.expectingFrames.stream().anyMatch(frame -> frame.getEndId() == id);
+        if (!exists) return Optional.empty();
+        for (Frame frame : this.expectingFrames) {
+            handler.accept(frame);
+            if (frame.getEndId() == id) {
+                return Optional.of(frame);
+            }
+        }
+        return Optional.empty();
     }
 
-    public void popFrame() {
-        this.expectingFrames.poll();
+    public void popFrame(int id) {
+        boolean exists = this.expectingFrames.stream().anyMatch(frame -> frame.getEndId() == id);
+        if (!exists) return;
+        do {
+            Frame frame = this.expectingFrames.poll();
+            if (frame.getEndId() == id) {
+                return;
+            }
+        } while (true);
     }
 }

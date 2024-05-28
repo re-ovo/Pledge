@@ -110,9 +110,9 @@ public class ClientPingerTests {
         for (int i = 0; i > -400; i--) {
             Optional<Frame> frame;
             if (toggle) {
-                frame = frameData.matchStart(i);
+                frame = frameData.matchStart(i, (f) -> {});
             } else {
-                frame = frameData.matchEnd(i);
+                frame = frameData.matchEnd(i, (f) -> {});
             }
 
             if (!frame.isPresent()) {
@@ -120,7 +120,7 @@ public class ClientPingerTests {
             }
 
             if (!toggle) {
-                frameData.popFrame();
+                frameData.popFrame(i);
             }
 
             toggle = !toggle;

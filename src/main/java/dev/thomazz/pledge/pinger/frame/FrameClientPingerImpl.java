@@ -93,9 +93,9 @@ public class FrameClientPingerImpl extends ClientPingerImpl implements FrameClie
 
         FrameData data = this.frameDataMap.get(player);
         if (data != null && this.frameListener != null) {
-            data.matchStart(id).ifPresent(
-                frame -> this.frameListener.forEach(listener -> listener.onFrameReceiveStart(player, frame))
-            );
+            data.matchStart(id, (frame) -> {
+                this.frameListener.forEach(listener -> listener.onFrameReceiveStart(player, frame));
+            });
         }
     }
 
@@ -105,12 +105,10 @@ public class FrameClientPingerImpl extends ClientPingerImpl implements FrameClie
 
         FrameData data = this.frameDataMap.get(player);
         if (data != null && this.frameListener != null) {
-            data.matchEnd(id).ifPresent(
-                frame -> {
-                    this.frameListener.forEach(listener -> listener.onFrameReceiveEnd(player, frame));
-                    data.popFrame();
-                }
-            );
+            data.matchEnd(id, (frame -> {
+                this.frameListener.forEach(listener -> listener.onFrameReceiveEnd(player, frame));
+            }));
+            data.popFrame(id);
         }
     }
 
